@@ -1,0 +1,6 @@
+# 한글이 든 .ps1은 UTF-8 BOM + CRLF로 둔다. Windows PowerShell 5.1 전용이다.
+* text=auto
+*.ps1 text eol=crlf
+*.vbs text eol=crlf
+*.md text eol=crlf
+*.html text eol=crlf

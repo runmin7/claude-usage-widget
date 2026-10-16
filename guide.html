@@ -1,0 +1,1034 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude 사용량 모니터 — 사용 가이드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+	:root {
+		--ground:      #FCFCFD;
+		--surface:     #F2F4F7;
+		--surface-2:   #E7EAF0;
+		--ink:         #14171D;
+		--ink-mid:     #4C5462;
+		--ink-dim:     #6E7686;
+		--rule:        #D9DDE5;
+		--rule-soft:   #E8EBF1;
+		--accent:      #0F6B68;
+		--accent-soft: #DCEEED;
+		--bad:         #C0392B;
+		--bad-soft:    #FBE9E7;
+		--good:        #1B7A4E;
+		--good-soft:   #E4F3EA;
+		--code-bg:     #F6F7FA;
+
+		--f-sans: 'IBM Plex Sans KR', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+		--f-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+		color-scheme: light;
+	}
+
+	@media (prefers-color-scheme: dark) {
+		:root:not([data-theme="light"]) {
+			--ground:      #0F1116;
+			--surface:     #171A21;
+			--surface-2:   #1F232C;
+			--ink:         #E8EAF0;
+			--ink-mid:     #AFB6C4;
+			--ink-dim:     #8A92A2;
+			--rule:        #2A2F3A;
+			--rule-soft:   #22262F;
+			--accent:      #5EC8C2;
+			--accent-soft: #16302F;
+			--bad:         #EF8579;
+			--bad-soft:    #2E1C19;
+			--good:        #5FC48C;
+			--good-soft:   #16291F;
+			--code-bg:     #14171D;
+
+			color-scheme: dark;
+		}
+	}
+
+	:root[data-theme="dark"] {
+		--ground:      #0F1116;
+		--surface:     #171A21;
+		--surface-2:   #1F232C;
+		--ink:         #E8EAF0;
+		--ink-mid:     #AFB6C4;
+		--ink-dim:     #8A92A2;
+		--rule:        #2A2F3A;
+		--rule-soft:   #22262F;
+		--accent:      #5EC8C2;
+		--accent-soft: #16302F;
+		--bad:         #EF8579;
+		--bad-soft:    #2E1C19;
+		--good:        #5FC48C;
+		--good-soft:   #16291F;
+		--code-bg:     #14171D;
+
+		color-scheme: dark;
+	}
+
+	* { box-sizing: border-box; }
+
+	body {
+		margin: 0;
+		background: var(--ground);
+		color: var(--ink);
+		font-family: var(--f-sans);
+		font-size: 16px;
+		font-weight: 400;
+		line-height: 1.72;
+		-webkit-font-smoothing: antialiased;
+		word-break: keep-all;
+	}
+
+	.wrap {
+		max-width: 940px;
+		margin: 0 auto;
+		padding: 0 28px 120px;
+	}
+
+	/* 본문 텍스트는 좁게, 코드·표·그림은 wrap 전체 폭을 쓴다 */
+	p, ul, ol, .lede, .note { max-width: 66ch; }
+
+	a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+	a:focus-visible, summary:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 3px;
+		border-radius: 2px;
+	}
+
+	code, kbd, pre, .mono { font-family: var(--f-mono); font-feature-settings: 'zero' 1; }
+
+	:not(pre) > code {
+		font-size: 0.855em;
+		background: var(--surface);
+		border: 1px solid var(--rule-soft);
+		border-radius: 3px;
+		padding: 0.08em 0.34em;
+		word-break: break-all;
+	}
+
+	/* ---------- 헤더 ---------- */
+
+	header { padding: 76px 0 0; }
+
+	.eyebrow {
+		font-family: var(--f-mono);
+		font-size: 11.5px;
+		font-weight: 500;
+		letter-spacing: 0.13em;
+		text-transform: uppercase;
+		color: var(--ink-dim);
+		margin: 0 0 20px;
+	}
+
+	h1 {
+		font-size: clamp(32px, 5.4vw, 47px);
+		line-height: 1.16;
+		font-weight: 600;
+		letter-spacing: -0.021em;
+		text-wrap: balance;
+		margin: 0 0 22px;
+	}
+
+	.lede {
+		font-size: 19px;
+		line-height: 1.66;
+		color: var(--ink-mid);
+		font-weight: 300;
+		margin: 0 0 40px;
+	}
+	.lede strong { color: var(--ink); font-weight: 500; }
+
+	/* 실제 dim 오버레이 재현 — 증상을 첫 화면에서 보여준다 */
+	.dim-sample {
+		background: #000;
+		border-radius: 4px;
+		padding: 30px 26px;
+		text-align: center;
+		margin: 0 0 14px;
+	}
+	.dim-sample span {
+		display: block;
+		color: rgba(255, 255, 255, 0.5);
+		font-size: 16px;
+		line-height: 1.85;
+		font-weight: 400;
+	}
+	.dim-caption {
+		font-family: var(--f-mono);
+		font-size: 11.5px;
+		color: var(--ink-dim);
+		line-height: 1.7;
+		margin: 0 0 52px;
+		max-width: none;
+	}
+
+	.facts {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(184px, 1fr));
+		gap: 1px;
+		background: var(--rule);
+		border: 1px solid var(--rule);
+		border-radius: 4px;
+		overflow: hidden;
+		margin: 0 0 4px;
+	}
+	.fact { background: var(--ground); padding: 16px 18px 18px; }
+	.fact dt {
+		font-family: var(--f-mono);
+		font-size: 10.5px;
+		font-weight: 500;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--ink-dim);
+		margin: 0 0 6px;
+	}
+	.fact dd {
+		margin: 0;
+		font-size: 14.5px;
+		line-height: 1.5;
+		color: var(--ink);
+		font-weight: 500;
+	}
+	.fact dd .sub { display: block; font-weight: 400; font-size: 13px; color: var(--ink-mid); }
+
+	/* ---------- 섹션 ---------- */
+
+	section { margin-top: 68px; }
+
+	.sec-label {
+		font-family: var(--f-mono);
+		font-size: 11px;
+		font-weight: 500;
+		letter-spacing: 0.13em;
+		text-transform: uppercase;
+		color: var(--accent);
+		padding-bottom: 10px;
+		border-bottom: 1px solid var(--rule);
+		margin: 0 0 26px;
+	}
+
+	h2 {
+		font-size: 26px;
+		line-height: 1.32;
+		font-weight: 600;
+		letter-spacing: -0.014em;
+		text-wrap: balance;
+		margin: 0 0 18px;
+	}
+
+	h3 {
+		font-size: 17.5px;
+		line-height: 1.45;
+		font-weight: 600;
+		margin: 40px 0 12px;
+	}
+
+	p { margin: 0 0 18px; }
+
+	ul, ol { margin: 0 0 18px; padding-left: 1.35em; }
+	li { margin-bottom: 9px; }
+	li::marker { color: var(--ink-dim); }
+
+	.note {
+		border-left: 2px solid var(--rule);
+		padding: 2px 0 2px 18px;
+		color: var(--ink-mid);
+		font-size: 15px;
+		margin: 0 0 18px;
+	}
+	.note strong { color: var(--ink); font-weight: 600; }
+
+	/* ---------- 코드 ---------- */
+
+	figure { margin: 26px 0; max-width: none; }
+
+	pre {
+		background: var(--code-bg);
+		border: 1px solid var(--rule-soft);
+		border-radius: 4px;
+		padding: 17px 19px;
+		margin: 0;
+		overflow-x: auto;
+		font-size: 13px;
+		line-height: 1.72;
+		tab-size: 4;
+	}
+	pre code { white-space: pre; }
+
+	.cm { color: var(--ink-dim); }
+	.hl-bad  { color: var(--bad);  font-weight: 600; }
+	.hl-good { color: var(--accent); font-weight: 600; }
+
+	figcaption {
+		font-size: 13.5px;
+		line-height: 1.62;
+		color: var(--ink-mid);
+		margin-top: 11px;
+		max-width: 72ch;
+	}
+	figcaption .tag {
+		font-family: var(--f-mono);
+		font-size: 10.5px;
+		font-weight: 600;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		padding: 2px 6px;
+		border-radius: 3px;
+		margin-right: 8px;
+		vertical-align: 1.5px;
+	}
+	.tag-before { background: var(--bad-soft);  color: var(--bad); }
+	.tag-after  { background: var(--good-soft); color: var(--good); }
+
+	/* ---------- 표 ---------- */
+
+	.tbl-scroll { overflow-x: auto; margin: 26px 0; }
+
+	table {
+		border-collapse: collapse;
+		width: 100%;
+		min-width: 620px;
+		font-size: 14px;
+	}
+	caption {
+		text-align: left;
+		font-size: 13.5px;
+		color: var(--ink-mid);
+		padding-bottom: 12px;
+	}
+	th, td {
+		text-align: left;
+		padding: 11px 14px;
+		border-bottom: 1px solid var(--rule-soft);
+		vertical-align: top;
+		line-height: 1.55;
+	}
+	thead th {
+		font-family: var(--f-mono);
+		font-size: 10.5px;
+		font-weight: 600;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		color: var(--ink-dim);
+		border-bottom: 1px solid var(--rule);
+		white-space: nowrap;
+	}
+	tbody th { font-weight: 500; font-family: var(--f-mono); font-size: 12.5px; white-space: nowrap; }
+	tbody tr:last-child th, tbody tr:last-child td { border-bottom: none; }
+	td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+	.pill {
+		display: inline-block;
+		font-family: var(--f-mono);
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.03em;
+		padding: 2px 8px;
+		border-radius: 10px;
+		white-space: nowrap;
+	}
+	.pill-bad  { background: var(--bad-soft);  color: var(--bad); }
+	.pill-warn { background: var(--surface-2); color: var(--ink-mid); }
+	.pill-good { background: var(--good-soft); color: var(--good); }
+
+	/* ---------- 다이어그램 ---------- */
+
+	.fig-frame {
+		background: var(--surface);
+		border: 1px solid var(--rule-soft);
+		border-radius: 4px;
+		padding: 24px 20px 18px;
+		overflow-x: auto;
+	}
+	.fig-frame svg { display: block; max-width: 100%; height: auto; margin: 0 auto; min-width: 660px; }
+
+	.d-box   { fill: var(--ground); stroke: var(--rule); stroke-width: 1.25; }
+	.d-box-k { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+	.d-box-b { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.25; }
+	.d-box-g { fill: var(--good-soft); stroke: var(--good); stroke-width: 1.25; }
+	.d-t     { fill: var(--ink); font-family: var(--f-sans); font-size: 12.5px; }
+	.d-t-s   { fill: var(--ink-mid); font-family: var(--f-sans); font-size: 11.5px; }
+	.d-m     { fill: var(--ink-dim); font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.07em; }
+	.d-m-b   { fill: var(--bad); font-family: var(--f-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; }
+	.d-m-g   { fill: var(--good); font-family: var(--f-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; }
+	.d-line  { stroke: var(--ink-dim); stroke-width: 1.25; fill: none; }
+	.d-line-b{ stroke: var(--bad); stroke-width: 1.25; fill: none; stroke-dasharray: 4 3; }
+	.d-line-g{ stroke: var(--good); stroke-width: 1.5; fill: none; }
+
+	/* ---------- 검증 체크리스트 ---------- */
+
+	.checks { list-style: none; padding: 0; margin: 22px 0 0; max-width: none; }
+	.checks li {
+		display: grid;
+		grid-template-columns: 26px 1fr;
+		gap: 0 14px;
+		padding: 14px 0;
+		border-bottom: 1px solid var(--rule-soft);
+		margin: 0;
+		align-items: baseline;
+	}
+	.checks li:last-child { border-bottom: none; }
+	.checks .ix {
+		font-family: var(--f-mono);
+		font-size: 11.5px;
+		font-weight: 600;
+		color: var(--ink-dim);
+		font-variant-numeric: tabular-nums;
+	}
+	.checks .what { font-size: 15px; font-weight: 500; }
+	.checks .how { font-size: 14px; color: var(--ink-mid); line-height: 1.6; }
+	.checks .key .what { color: var(--accent); }
+
+	/* ---------- 푸터 ---------- */
+
+	footer {
+		margin-top: 72px;
+		padding-top: 22px;
+		border-top: 1px solid var(--rule);
+		font-size: 13.5px;
+		color: var(--ink-dim);
+		line-height: 1.7;
+	}
+	footer p { max-width: 72ch; margin: 0 0 8px; }
+
+	@media (max-width: 620px) {
+		header { padding-top: 52px; }
+		.wrap { padding: 0 20px 80px; }
+		.lede { font-size: 17.5px; }
+		section { margin-top: 54px; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		* { animation: none !important; transition: none !important; }
+	}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+	<p class="eyebrow">사용 가이드 · 사내 유틸 · 2026-09-10</p>
+	<h1>Claude 사용량 모니터</h1>
+	<p class="lede">
+		Claude 앱의 <strong>설정 → 사용량</strong>을 열지 않고, 트레이 아이콘과 바탕화면 위젯으로
+		5시간 세션 한도와 주간 한도를 바로 확인하는 프로그램입니다.
+		임계치를 넘으면 알림이 뜨고, 단축키로 위젯을 열고 닫습니다.
+	</p>
+
+	<dl class="facts">
+		<div class="fact">
+			<dt>데이터 출처</dt>
+			<dd>Anthropic API<span class="sub">비공식 엔드포인트</span></dd>
+		</div>
+		<div class="fact">
+			<dt>갱신 주기</dt>
+			<dd>5분<span class="sub">유휴 시 15분</span></dd>
+		</div>
+		<div class="fact">
+			<dt>알림 임계치</dt>
+			<dd>50 · 70 · 90 · 95%<span class="sub">한도별 각 1회</span></dd>
+		</div>
+		<div class="fact">
+			<dt>기본 단축키</dt>
+			<dd>Ctrl+Alt+U<span class="sub">위젯 열기·닫기</span></dd>
+		</div>
+	</dl>
+</header>
+
+<section>
+	<p class="sec-label">작동 원리</p>
+	<h2>사용량을 어디서 가져오는가</h2>
+
+	<p>
+		Claude Code가 로그인할 때 저장해둔 OAuth 토큰을 그대로 빌려 씁니다. 이 프로그램은
+		별도 로그인이나 API 키 발급이 필요 없고, 토큰을 <strong>읽기만</strong> 합니다.
+	</p>
+
+	<figure>
+		<div class="fig-frame">
+			<svg viewBox="0 0 700 140" xmlns="http://www.w3.org/2000/svg" role="img">
+				<title>토큰을 읽어 사용량 API를 호출하는 흐름</title>
+
+				<rect class="d-box" x="6" y="44" width="200" height="56" rx="4"/>
+				<text class="d-t" x="106" y="68" text-anchor="middle">.credentials.json</text>
+				<text class="d-t-s" x="106" y="86" text-anchor="middle">Claude Code가 저장한 토큰</text>
+
+				<path class="d-line" d="M210 72 H256"/>
+				<text class="d-m" x="233" y="64" text-anchor="middle">읽기</text>
+
+				<rect class="d-box-k" x="260" y="44" width="150" height="56" rx="4"/>
+				<text class="d-t" x="335" y="68" text-anchor="middle">사용량 모니터</text>
+				<text class="d-t-s" x="335" y="86" text-anchor="middle">5~15분마다</text>
+
+				<path class="d-line-g" d="M414 72 H470"/>
+				<text class="d-m-g" x="442" y="64" text-anchor="middle">BEARER</text>
+
+				<rect class="d-box-g" x="474" y="44" width="220" height="56" rx="4"/>
+				<text class="d-t" x="584" y="68" text-anchor="middle">api.anthropic.com</text>
+				<text class="d-t-s" x="584" y="86" text-anchor="middle">/api/oauth/usage</text>
+			</svg>
+		</div>
+		<figcaption>
+			Claude Code의 <code>/usage</code> 명령과 Claude 앱 설정 화면이 쓰는 것과 같은 API입니다.
+			따라서 표시되는 값은 계정 전체 사용량 — 데스크톱 앱, claude.ai, Claude Code를 모두 합친 값입니다.
+		</figcaption>
+	</figure>
+
+	<p class="note">
+		<strong>토큰은 읽기만 합니다.</strong> 토큰 갱신을 직접 하거나 자격증명 파일에 쓰지 않습니다.
+		Claude Code의 자체 갱신과 부딪히면 로그아웃될 수 있기 때문입니다. 대신 토큰이 만료되면
+		만료 상태만 표시하고, 갱신되면 다음 조회에서 복구됩니다.
+	</p>
+
+	<p class="note">
+		<strong>토큰을 갱신하는 것은 터미널의 <code>claude</code> 명령(CLI)뿐입니다.</strong>
+		데스크톱 앱은 자격증명을 별도 저장소(브라우저 쿠키)에 두기 때문에, 앱에서 아무리 작업해도
+		이 파일은 갱신되지 않습니다. 액세스 토큰 수명이 8시간이라 <strong>CLI를 하루 넘게 쓰지 않으면
+		표시가 멈춥니다.</strong> 터미널에서 <code>claude</code>로 아무 작업이나 한 번 하면 바로
+		복구됩니다. 만료된 토큰으로는 요청을 아예 보내지 않으므로 그 상태가 서버 차단으로 번지지는
+		않습니다.
+	</p>
+</section>
+
+<section>
+	<p class="sec-label">설치</p>
+	<h2>다른 PC에서 쓰려면</h2>
+
+	<p>
+		<strong>폴더 경로를 맞춰줄 일은 없습니다.</strong> 토큰은 Claude를 설치한 위치가 아니라
+		<strong>사용자 프로필</strong>(<code>%USERPROFILE%\.claude</code>) 아래에서 찾습니다.
+		이 경로는 PC가 달라도 같으므로 설정할 것이 없습니다.
+	</p>
+
+	<h3>필요한 것</h3>
+
+	<div class="tbl-scroll">
+		<table>
+			<caption>Windows 10 · 11이면 앞의 두 항목은 이미 있습니다.</caption>
+			<thead>
+				<tr>
+					<th scope="col">항목</th>
+					<th scope="col">비고</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th scope="row">Windows PowerShell 5.1</th>
+					<td><span class="pill pill-good">기본 포함</span> 별도 설치 불필요</td>
+				</tr>
+				<tr>
+					<th scope="row">.NET Framework</th>
+					<td><span class="pill pill-good">기본 포함</span> 별도 설치 불필요</td>
+				</tr>
+				<tr>
+					<th scope="row">Claude Code 설치 + 로그인</th>
+					<td><span class="pill pill-bad">필수</span> 토큰을 여기서 빌려 씁니다. 한 번도 로그인하지 않았다면 동작하지 않습니다</td>
+				</tr>
+				<tr>
+					<th scope="row">Claude 구독</th>
+					<td><span class="pill pill-bad">필수</span> Pro · Max · Team · Enterprise</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+
+	<h3>설치 순서</h3>
+
+	<ol class="checks">
+		<li class="key">
+			<span class="ix">01</span>
+			<span>
+				<span class="what">ZIP의 차단을 먼저 해제합니다</span>
+				<span class="how">압축을 풀기 <strong>전에</strong> ZIP 파일 우클릭 → 속성 → 아래쪽의 <strong>차단 해제</strong>에 체크. 순서가 중요합니다 — 먼저 풀면 파일마다 따로 해제해야 합니다. 해제하지 않아도 실행 자체는 되지만, 처음 실행할 때 보안 경고가 뜰 수 있습니다.</span>
+			</span>
+		</li>
+		<li>
+			<span class="ix">02</span>
+			<span>
+				<span class="what">원하는 폴더에 압축을 풉니다</span>
+				<span class="how"><code>ClaudeUsageMonitor.ps1</code>, <code>start.vbs</code>, <code>guide.html</code>, <code>MODULES.md</code>와 <code>lib</code> 폴더가 들어 있습니다. <strong><code>lib</code> 폴더를 같이 풀어야</strong> 실행됩니다. 위치는 어디든 상관없지만, 나중에 옮기지 않을 곳에 두는 편이 좋습니다.</span>
+			</span>
+		</li>
+		<li>
+			<span class="ix">03</span>
+			<span>
+				<span class="what">start.vbs를 실행합니다</span>
+				<span class="how">창은 뜨지 않습니다. 트레이에 사용률 숫자가 그려진 아이콘이 나타나면 정상입니다. <code>config.json</code>은 이때 자동으로 만들어집니다.</span>
+			</span>
+		</li>
+		<li>
+			<span class="ix">04</span>
+			<span>
+				<span class="what">자동 시작을 켭니다</span>
+				<span class="how">트레이 우클릭 → 로그온 시 자동 시작. <strong>이후 폴더를 옮기면 바로가기가 깨지므로</strong> 옮긴 뒤 다시 켜야 합니다.</span>
+			</span>
+		</li>
+	</ol>
+
+	<p class="note">
+		<strong>메일로는 보내지 마세요.</strong> <code>start.vbs</code>는 Outlook이 기본으로 차단하는
+		확장자이고, 사내 메일 보안이 ZIP 안까지 검사하면 첨부가 제거되거나 격리됩니다. 사내 공유
+		폴더·SharePoint·Teams로 전달하는 편이 확실합니다.
+	</p>
+
+	<p>
+		WSH(<code>.vbs</code>)를 정책으로 막아둔 PC라면 런처가 동작하지 않습니다. 그때는 아래 내용으로
+		바로가기를 만들어 대신 쓰면 됩니다.
+	</p>
+
+	<figure>
+		<pre><code>powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "<span class="hl-good">설치한 경로</span>\ClaudeUsageMonitor.ps1"</code></pre>
+		<figcaption>런처를 쓸 수 없을 때의 대안. 콘솔 창이 잠깐 깜빡일 수 있습니다.</figcaption>
+	</figure>
+
+	<p class="note">
+		<strong>계정을 여러 개 쓰는 경우</strong>에만 예외가 있습니다. <code>CLAUDE_CONFIG_DIR</code>
+		환경변수로 Claude 설정 위치를 옮겨 둔 PC라면, 이 프로그램도 그 변수를 따라갑니다.
+		변수가 없거나 가리키는 폴더가 없으면 기본 경로를 씁니다. 역시 손댈 것이 없습니다.
+	</p>
+
+	<p>
+		실행 후 위젯 맨 위에 <strong>빨간 글씨</strong>로 &ldquo;자격증명을 읽을 수 없습니다&rdquo;라고
+		나오면, 그 PC에서 Claude Code에 로그인하지 않은 것입니다. 한 번 로그인하면 다음 갱신에서 잡힙니다.
+	</p>
+</section>
+
+<section>
+	<p class="sec-label">사용법</p>
+	<h2>보는 법과 조작</h2>
+
+	<h3>트레이 아이콘</h3>
+
+	<p>
+		작업표시줄 우측 하단에 상주합니다. 아이콘에 <strong>세션 사용률 숫자가 직접 그려져</strong>
+		있어 클릭하지 않아도 값이 보이고, 색이 현재 등급을 나타냅니다.
+	</p>
+
+	<div class="tbl-scroll">
+		<table>
+			<caption>아이콘 색은 넘어선 임계치에 따라 바뀝니다.</caption>
+			<thead>
+				<tr>
+					<th scope="col">색</th>
+					<th scope="col">의미</th>
+					<th scope="col">사용률</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th scope="row">녹색</th>
+					<td>여유</td>
+					<td><span class="pill pill-good">50% 미만</span></td>
+				</tr>
+				<tr>
+					<th scope="row">노란색</th>
+					<td>주의</td>
+					<td><span class="pill pill-warn">50% 이상</span></td>
+				</tr>
+				<tr>
+					<th scope="row">주황색</th>
+					<td>경고</td>
+					<td><span class="pill pill-warn">70% 이상</span></td>
+				</tr>
+				<tr>
+					<th scope="row">빨간색</th>
+					<td>위험 — 95%에서 알림이 한 번 더 뜨지만 색은 그대로입니다</td>
+					<td><span class="pill pill-bad">90% 이상</span></td>
+				</tr>
+				<tr>
+					<th scope="row">회색</th>
+					<td>갱신이 멈춤 — 표시된 값은 마지막으로 받아온 값. 위젯 맨 위에 사유가 빨간 글씨로 나옵니다</td>
+					<td>—</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+
+	<h3>위젯</h3>
+
+	<p>
+		한도별 사용률, 게이지, 리셋까지 남은 시간과 리셋 시각을 함께 보여주는 작은 패널입니다.
+		항상 다른 창 위에 뜨고, <strong>아무 곳이나 잡아 끌어</strong> 옮길 수 있습니다.
+		옮긴 위치는 기억되며, 다음 실행에도 같은 자리에 나타납니다.
+		<strong>Alt+Tab 목록에는 나오지 않습니다.</strong>
+	</p>
+
+	<p>
+		<strong>세션이 크게 표시됩니다.</strong> 5시간 한도는 매일 체감되는 값이라, 현재 퍼센트와
+		남은 시간을 한눈에 읽어 앞으로 어떻게 쓸지 판단할 수 있어야 합니다. 주간 한도는 하루 단위로
+		천천히 움직이므로 아래에 보조 크기로 둡니다.
+	</p>
+
+	<div class="tbl-scroll">
+		<table>
+			<caption>글자 색이 정보의 종류를 구분합니다. 모든 글자는 굵게 표시됩니다.</caption>
+			<thead>
+				<tr>
+					<th scope="col">색</th>
+					<th scope="col">무엇</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th scope="row">녹 · 황 · 주황 · 적</th>
+					<td>퍼센트 숫자와 게이지. 숫자만 봐도 현재 등급이 읽힙니다</td>
+				</tr>
+				<tr>
+					<th scope="row">청색</th>
+					<td>세션 남은 시간. 가장 자주 보는 값이라 이 색만 씁니다</td>
+				</tr>
+				<tr>
+					<th scope="row">민트</th>
+					<td>주간을 접었을 때의 한 줄 요약 중 한도와 퍼센트. 뒤따르는 갱신 시점은 흰색입니다</td>
+				</tr>
+				<tr>
+					<th scope="row">빨간색</th>
+					<td>갱신 실패. 위젯 맨 위의 갱신 시각과 사유가 함께 빨갛게 바뀝니다</td>
+				</tr>
+				<tr>
+					<th scope="row">흰색</th>
+					<td>그 외 모든 글자</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+
+	<p>
+		주간이 필요 없으면 우클릭 → <strong>주간 한도 함께 표시</strong>를 끄면 됩니다. 게이지가 빠지고
+		<code>주간 61% · 4일 14시간 후(9/15) 갱신</code>처럼 <strong>한 줄 요약</strong>만 남습니다.
+		접어둬도 <strong>알림과 툴팁은 그대로</strong> 동작하므로, 주간이 임계치를 넘으면 여전히
+		알려주고 아이콘에 마우스를 올리면 확인할 수 있습니다.
+	</p>
+
+	<p class="note">
+		<strong>갱신 시각은 위젯에 표시하지 않습니다.</strong> 우클릭 메뉴를 열면 맨 위
+		<strong>지금 갱신 (11:45:02)</strong>처럼 괄호 안에 붙어 있습니다. 이 시각은 API 조회가
+		마지막으로 <strong>성공한</strong> 시각이라, 오래됐다면 화면의 퍼센트도 그때 값입니다. 갱신이 멈춘 경우에는 사유가 위젯 맨 위에
+		빨간 글씨로 계속 표시됩니다.
+	</p>
+
+	<div class="tbl-scroll">
+		<table>
+			<caption>위젯을 열고 닫는 네 가지 방법.</caption>
+			<thead>
+				<tr>
+					<th scope="col">조작</th>
+					<th scope="col">동작</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th scope="row">트레이 좌클릭</th>
+					<td>위젯 열기 · 닫기</td>
+				</tr>
+				<tr>
+					<th scope="row">Ctrl+Alt+U</th>
+					<td>위젯 열기 · 닫기. 다른 프로그램을 쓰는 중에도 동작합니다</td>
+				</tr>
+				<tr>
+					<th scope="row">위젯 우상단 ✕</th>
+					<td>위젯 숨기기. 프로그램은 트레이에 계속 남아 있습니다</td>
+				</tr>
+				<tr>
+					<th scope="row">우클릭 → 위젯 표시</th>
+					<td>위젯 열기 · 닫기</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+
+	<h3>우클릭 메뉴</h3>
+
+	<div class="tbl-scroll">
+		<table>
+			<caption>트레이 아이콘을 우클릭하면 나오는 항목들.</caption>
+			<thead>
+				<tr>
+					<th scope="col">항목</th>
+					<th scope="col">설명</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th scope="row">지금 갱신</th>
+					<td>
+						주기를 기다리지 않고 즉시 다시 받아옵니다. 괄호 안에 마지막으로
+						<strong>성공한</strong> 조회 시각이 표시됩니다
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">토큰 갱신 시도</th>
+					<td>
+						토큰이 만료됐을 때 <code>claude</code>를 대신 짧게 실행해 갱신을 유도합니다.
+						<strong>약 10초가 걸리고 사용량을 소량 씁니다</strong>(실측 약 4만 토큰)
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">토큰 만료 시 자동 갱신</th>
+					<td>
+						위 동작을 자동으로 합니다. <strong>기본은 꺼져 있습니다</strong> — 사용량을 보는 도구가
+						사용량을 쓰는 것이라 사용자가 켜는 선택이어야 합니다. 켜면 최소 60분 간격으로만 실행됩니다
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">위젯 표시</th>
+					<td>위젯을 열고 닫습니다</td>
+				</tr>
+				<tr>
+					<th scope="row">주간 한도 함께 표시</th>
+					<td>끄면 위젯에 세션만 남습니다. 알림과 툴팁은 그대로 동작합니다</td>
+				</tr>
+				<tr>
+					<th scope="row">임계치 알림</th>
+					<td>알림을 켜고 끕니다. 끄면 색 구분만 남습니다</td>
+				</tr>
+				<tr>
+					<th scope="row">단축키 설정</th>
+					<td>조합을 직접 눌러 지정합니다. 괄호 안에 현재 조합이 표시됩니다</td>
+				</tr>
+				<tr>
+					<th scope="row">로그온 시 자동 시작</th>
+					<td>시작 폴더에 바로가기를 넣거나 뺍니다. 레지스트리는 건드리지 않습니다</td>
+				</tr>
+				<tr>
+					<th scope="row">사용 가이드</th>
+					<td>이 문서를 엽니다</td>
+				</tr>
+				<tr>
+					<th scope="row">종료</th>
+					<td>프로그램을 끝냅니다</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+
+	<h3>단축키 바꾸기</h3>
+
+	<p>
+		우클릭 → <strong>단축키 설정</strong>을 열고 원하는 조합을 그대로 누르면 됩니다.
+		확인을 누르면 재시작 없이 즉시 적용되고 설정에 저장됩니다.
+	</p>
+
+	<ul>
+		<li><code>Ctrl</code> · <code>Alt</code> · <code>Shift</code> · <code>Win</code> 중 <strong>하나 이상</strong>이 포함돼야 합니다. 전역 단축키라 수정자가 없으면 다른 프로그램의 타이핑을 가로채기 때문입니다.</li>
+		<li>다른 프로그램이 이미 쓰는 조합이면 등록에 실패하고 그 자리에서 알려줍니다. 이때 이전 조합이 그대로 유지됩니다.</li>
+		<li>메뉴 항목에 <code>단축키 설정 (Ctrl+Alt+U)</code>처럼 현재 조합이 표시됩니다. 등록에 실패한 상태면 실패 사유도 함께 나옵니다.</li>
+	</ul>
+
+	<h3>알림</h3>
+
+	<p>
+		세션과 주간 각각 <strong>50% · 70% · 90% · 95%</strong>를 넘을 때 한 번씩 알림이 뜹니다.
+		한 번에 여러 단계를 뛰어넘으면 가장 높은 것만 알립니다. 한도가 리셋되면 다시 처음부터
+		알릴 준비를 합니다.
+	</p>
+
+	<p class="note">
+		<strong>이미 지나간 구간은 알리지 않습니다.</strong> 프로그램을 58%에서 켰다면 50% 초과는
+		이미 지난 일이라 알림이 뜨지 않고, 그 뒤에 넘어서는 70% 부터 알립니다. 켤 때마다 지난 구간이
+		쏟아지는 것을 막기 위한 동작입니다.
+	</p>
+
+	<p class="note">
+		<strong>90%와 95%는 같은 빨간색을 씁니다.</strong> 색은 네 단계(여유·주의·경고·위험)뿐이고
+		95%는 그중 위험에 함께 들어갑니다. 한도가 거의 다 찼을 때 한 번 더 짚어주기 위한 알림이라,
+		색이 아니라 알림으로만 구분됩니다.
+	</p>
+</section>
+
+<section>
+	<p class="sec-label">설정</p>
+	<h2>config.json</h2>
+
+	<p>
+		대부분은 우클릭 메뉴로 바꿀 수 있어 파일을 열 일이 없습니다. 직접 고칠 때는
+		프로그램을 종료한 뒤 편집하고 다시 실행하세요. 값이 비정상이면 실행할 때 기본값으로 되돌립니다.
+	</p>
+
+	<div class="tbl-scroll">
+		<table>
+			<caption>프로그램과 같은 폴더에 있습니다. 첫 실행 때 자동으로 만들어집니다.</caption>
+			<thead>
+				<tr>
+					<th scope="col">키</th>
+					<th scope="col">기본값</th>
+					<th scope="col">설명</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th scope="row">pollActiveSeconds</th>
+					<td class="num">300</td>
+					<td>PC를 쓰는 동안의 갱신 간격(초). <strong>줄이지 않는 편이 좋습니다</strong> — 아래 주의사항 참고</td>
+				</tr>
+				<tr>
+					<th scope="row">pollIdleSeconds</th>
+					<td class="num">900</td>
+					<td>입력이 없을 때의 갱신 간격(초)</td>
+				</tr>
+				<tr>
+					<th scope="row">idleAfterSeconds</th>
+					<td class="num">300</td>
+					<td>이만큼 입력이 없으면 유휴로 간주합니다</td>
+				</tr>
+				<tr>
+					<th scope="row">thresholds</th>
+					<td class="num">[50, 70, 90, 95]</td>
+					<td>알림·색 등급의 기준(%). 1~100 정수. 개수는 자유롭게 늘리거나 줄일 수 있고, 색은 네 단계에서 포화합니다</td>
+				</tr>
+				<tr>
+					<th scope="row">hotkey</th>
+					<td>Ctrl+Alt+U</td>
+					<td>위젯 토글 단축키</td>
+				</tr>
+				<tr>
+					<th scope="row">notifyEnabled</th>
+					<td>true</td>
+					<td>임계치 알림 사용 여부</td>
+				</tr>
+				<tr>
+					<th scope="row">showWeekly</th>
+					<td>true</td>
+					<td>위젯에 주간 한도를 함께 표시할지 여부. 우클릭 메뉴로 바꾸면 자동으로 갱신됩니다</td>
+				</tr>
+				<tr>
+					<th scope="row">autoRefreshToken</th>
+					<td>false</td>
+					<td>토큰 만료 시 <code>claude</code>를 자동 실행해 갱신할지 여부. 사용량을 쓰므로 기본은 꺼져 있습니다</td>
+				</tr>
+				<tr>
+					<th scope="row">refreshCooldownMinutes</th>
+					<td class="num">60</td>
+					<td>자동 갱신의 최소 간격(분). 10분 미만은 강제로 10분이 됩니다</td>
+				</tr>
+				<tr>
+					<th scope="row">widgetVisible</th>
+					<td>false</td>
+					<td>시작할 때 위젯을 띄울지 여부. 위젯을 열고 닫으면 자동으로 갱신됩니다</td>
+				</tr>
+				<tr>
+					<th scope="row">widgetX · widgetY</th>
+					<td>null</td>
+					<td>위젯 위치. 드래그하면 자동으로 저장됩니다</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<section>
+	<p class="sec-label">주의사항</p>
+	<h2>이 프로그램은 비공식 API에 의존합니다</h2>
+
+	<p>
+		사용량을 가져오는 <code>/api/oauth/usage</code>는 <strong>Anthropic이 문서화하지 않은
+		엔드포인트</strong>입니다. Claude Code와 Claude 앱이 내부적으로 쓰는 것을 그대로 호출하는
+		방식이고, 공개된 규격이나 지원 약속이 없습니다. 실제로 이 엔드포인트의 동작을 문제 삼은
+		이슈는 Anthropic이 대응하지 않기로 종료한 상태입니다.
+	</p>
+
+	<p>따라서 다음을 전제로 쓰셔야 합니다.</p>
+
+	<ol class="checks">
+		<li class="key">
+			<span class="ix">01</span>
+			<span>
+				<span class="what">예고 없이 깨질 수 있습니다</span>
+				<span class="how">응답 형식이 바뀌거나 엔드포인트가 사라지면 표시가 멈춥니다. 필드가 일부 빠지는 정도는 견디도록 만들었지만, 엔드포인트 자체가 없어지면 대응 방법이 없습니다.</span>
+			</span>
+		</li>
+		<li class="key">
+			<span class="ix">02</span>
+			<span>
+				<span class="what">자주 요청하면 막힙니다</span>
+				<span class="how">요청 제한이 엄격하고 <strong>한 번 걸리면 잘 풀리지 않습니다.</strong> 그래서 기본 간격을 5분으로 잡았습니다. <code>pollActiveSeconds</code>를 줄이는 것은 권하지 않습니다.</span>
+			</span>
+		</li>
+		<li>
+			<span class="ix">03</span>
+			<span>
+				<span class="what">공식 대안은 이 용도에 맞지 않습니다</span>
+				<span class="how">문서화된 Claude Code Analytics API는 관리자 키가 필요하고 Team 플랜은 지원하지 않으며, 일별 집계라 5시간 롤링 한도의 잔량을 알 수 없습니다.</span>
+			</span>
+		</li>
+		<li>
+			<span class="ix">04</span>
+			<span>
+				<span class="what">Anthropic의 공식 제품이 아닙니다</span>
+				<span class="how">사내에서 쓰기 위해 만든 유틸입니다. 표시된 값이 이상하면 Claude 앱의 설정 → 사용량 화면과 비교해 보세요.</span>
+			</span>
+		</li>
+	</ol>
+</section>
+
+<section>
+	<p class="sec-label">문제 해결</p>
+	<h2>안 될 때</h2>
+
+	<div class="tbl-scroll">
+		<table>
+			<caption>증상별 대처. 갱신이 멈추면 위젯 맨 위에 사유가 빨간 굵은 글씨로 나오고, 아이콘 툴팁에도 표시됩니다.</caption>
+			<thead>
+				<tr>
+					<th scope="col">증상</th>
+					<th scope="col">원인과 대처</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th scope="row">토큰 만료</th>
+					<td>
+						<strong>터미널에서 <code>claude</code>를 실행해 아무 작업이나 한 번</strong> 하면 갱신되고 다음 조회에서 복구됩니다.<br>
+						갱신되지 <strong>않는</strong> 것들: <code>claude --version</code>, <code>claude auth status</code>(인증 호출을 하지 않음),
+						그리고 <strong>데스크톱 앱 사용</strong>(자격증명 저장소가 다름)
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">요청 제한(429)</th>
+					<td>
+						잠시 물러났다가 다시 시도합니다. 표시된 시간만큼 기다리세요.
+						<strong>껐다 켜도 빨라지지 않습니다</strong> — 남은 대기 시간은 저장되어 재시작 후에도 이어집니다.
+						이때 &ldquo;지금 갱신&rdquo;은 동작하지 않습니다. 누른 만큼 제한이 길어지기 때문입니다
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">갱신 실패</th>
+					<td>네트워크 문제이거나 응답 형식이 바뀐 경우입니다. 우클릭 → 지금 갱신으로 다시 시도해 보세요</td>
+				</tr>
+				<tr>
+					<th scope="row">단축키가 안 먹음</th>
+					<td>우클릭 메뉴에서 항목 이름을 확인하세요. 다른 프로그램이 쓰고 있으면 사유가 표시됩니다. 다른 조합으로 바꾸면 됩니다</td>
+				</tr>
+				<tr>
+					<th scope="row">위젯이 안 보임</th>
+					<td>다른 모니터에 있었다면 화면 밖에 있을 수 있습니다. 닫고 다시 열면 화면 안으로 되돌아옵니다</td>
+				</tr>
+				<tr>
+					<th scope="row">아예 실행되지 않음</th>
+					<td>이미 실행 중일 수 있습니다. 트레이 아이콘을 먼저 확인하세요</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<footer>
+	<p>
+		Claude 사용량 모니터 · 사내 유틸리티. 프로그램 폴더의 <code>start.vbs</code>로 실행합니다.
+	</p>
+	<p>
+		Anthropic의 공식 제품이 아니며, 문서화되지 않은 API에 의존합니다.
+	</p>
+</footer>
+
+</div>
+</body>
+</html>
