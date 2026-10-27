@@ -20,11 +20,24 @@ $script:Backoff     = 0
 $script:ForceFetch  = $true
 $script:RetriedAuth = $false
 
-# 한도별 알림 발화 이력. 리셋 시각(윈도우 식별자)이 바뀌면 비워 재무장한다.
-$script:NotifyState = @{}
+# 서비스별 개별 상태 및 한도 목록 (Claude / Gemini / AGY)
+$script:ClaudeLimits     = @()
+$script:ClaudeStatus     = 'init'
+$script:ClaudeStatusText = '초기화 중'
 
-# 첫 조회로 기준선을 잡았는지. 프로그램을 58%에서 켰다면 50% 초과는 이미 지난 일이므로 알리지 않는다.
-$script:NotifyPrimed = $false
+$script:GeminiLimits      = @()
+$script:GeminiStatus      = 'init'
+$script:GeminiStatusText  = '초기화 중'
+$script:GeminiAccessToken  = $null
+$script:GeminiTokenExpiry  = $null
+$script:GeminiProjectId    = $null
+$script:GeminiClientId     = $null
+$script:GeminiClientSecret = $null
+
+$script:AgyLimits     = @()
+$script:AgyStatus     = 'init'
+$script:AgyStatusText = '초기화 중'
+$script:AgyFileCache  = @{}
 
 # 리셋 직후 즉시 갱신을 이미 예약한 창들. 같은 창에서 반복 요청하는 것을 막는다.
 $script:ResetHandled = @{}
@@ -54,5 +67,3 @@ $script:HotkeySeen   = 0      # 마지막으로 처리한 PressCount
 $script:HotkeyText   = ''     # 현재 등록된 조합 (표시용)
 $script:HotkeyError  = ''     # 등록 실패 사유. 비어 있으면 정상
 $script:HotkeyDraft  = ''     # 설정 대화상자에서 캡처 중인 조합
-
-

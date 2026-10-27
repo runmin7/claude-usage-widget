@@ -39,8 +39,8 @@ function Initialize-Widget {
     $form.TopMost         = $true
     $form.ShowInTaskbar   = $false
     $form.BackColor       = [System.Drawing.Color]::FromArgb(28, 30, 34)
-    $form.Width           = Get-Px 268
-    $form.Height          = Get-Px 140
+    $form.Width           = Get-Px 284
+    $form.Height          = Get-Px 280
     $form.StartPosition   = [System.Windows.Forms.FormStartPosition]::Manual
     $form.ContextMenuStrip = $script:NotifyIcon.ContextMenuStrip
 
@@ -97,14 +97,12 @@ function Get-CachedFont([double]$size, $style) {
     return $script:FontCache[$key]
 }
 
-# 위젯의 모든 글자는 굵게 쓴다. 스타일을 인자로 받지 않는 이유는 호출부에서 실수로
-
 function Show-Widget {
     Initialize-Widget
+    Update-Widget
     # 보일 때마다 좌표를 다시 검증한다. 위젯이 있던 모니터가 분리되면 화면 밖에 갇히기 때문이다.
     Restore-WidgetLocation
     $script:WidgetForm.Show()
-    Update-Widget
     $script:WidgetForm.TopMost = $true
     $script:Config.widgetVisible = $true
     Export-Config
@@ -115,5 +113,3 @@ function Hide-Widget {
     $script:Config.widgetVisible = $false
     Export-Config
 }
-
-

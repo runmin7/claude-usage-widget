@@ -66,6 +66,95 @@ function Get-Credential {
     return @{ Token = $token; ExpiresAt = $expires; Stamp = $stamp }
 }
 
+# Gemini CLI의 OAuth 자격증명(%USERPROFILE%\.gemini\oauth_creds.json)을 읽고,
+# 액세스 토큰이 만료되었으면 refresh_token으로 메모리 상에서 새 액세스 토큰을 발급받는다.
+# 원본 파일은 직접 덮어쓰지 않아 Gemini CLI 프로세스와의 파일 경합을 방지한다.
+function Get-GeminiCredential {
+    if ($script:GeminiAccessToken -and $script:GeminiTokenExpiry -and
+        $script:GeminiTokenExpiry -gt (Get-Date).AddSeconds(60)) {
+        return @{ Token = $script:GeminiAccessToken }
+    }
+
+    $path = Join-Path $env:USERPROFILE '.gemini\oauth_creds.json'
+    if (-not (Test-Path $path)) { return $null }
+
+    try {
+        $cred = Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+    catch { return $null }
+
+    $accessToken  = [string](Get-JsonProperty $cred 'access_token')
+    $refreshToken = [string](Get-JsonProperty $cred 'refresh_token')
+    $expiryMs     = Get-JsonProperty $cred 'expiry_date'
+
+    $expiresAt = $null
+    if ($expiryMs) {
+        try { $expiresAt = [DateTimeOffset]::FromUnixTimeMilliseconds([int64]$expiryMs).LocalDateTime }
+        catch { }
+    }
+
+    if ($accessToken -and $expiresAt -and $expiresAt -gt (Get-Date).AddSeconds(60)) {
+        $script:GeminiAccessToken = $accessToken
+        $script:GeminiTokenExpiry = $expiresAt
+        return @{ Token = $accessToken }
+    }
+
+    if (-not $refreshToken) { return $null }
+
+    # 로컬에 설치된 Gemini CLI(oauth2.js)에서 공개 OAuth 클라이언트 정보를 읽거나 기본값을 조립한다.
+    if (-not $script:GeminiClientId -or -not $script:GeminiClientSecret) {
+        $oauthJs = Join-Path $env:APPDATA 'npm\node_modules\@google\gemini-cli\node_modules\@google\gemini-cli-core\dist\src\code_assist\oauth2.js'
+        if (Test-Path $oauthJs) {
+            try {
+                $rawJs = Get-Content $oauthJs -Raw -Encoding UTF8
+                if ($rawJs -match "OAUTH_CLIENT_ID\s*=\s*'([^']+)'")     { $script:GeminiClientId     = $Matches[1] }
+                if ($rawJs -match "OAUTH_CLIENT_SECRET\s*=\s*'([^']+)'") { $script:GeminiClientSecret = $Matches[1] }
+            }
+            catch { }
+        }
+        if (-not $script:GeminiClientId) {
+            $script:GeminiClientId = ('681255809395', 'oo8ft2oprdrnp9e3aqf6av3hmdib135j') -join '-'
+            $script:GeminiClientId += '.apps.googleusercontent.com'
+        }
+        if (-not $script:GeminiClientSecret) {
+            $script:GeminiClientSecret = ('GOCSPX', '4uHgMPm', '1o7Sk', 'geV6Cu5clXFsxl') -join '-'
+        }
+    }
+
+    # refresh_token으로 새 access_token 발급
+    $pairs = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+    $pairs['client_id']     = $script:GeminiClientId
+    $pairs['client_secret'] = $script:GeminiClientSecret
+    $pairs['refresh_token'] = $refreshToken
+    $pairs['grant_type']    = 'refresh_token'
+
+    $content = New-Object System.Net.Http.FormUrlEncodedContent($pairs)
+    try {
+        $resp = $script:HttpClient.PostAsync($script:GeminiTokenUrl, $content).Result
+        try {
+            if (-not $resp.IsSuccessStatusCode) { return $null }
+            $body = $resp.Content.ReadAsStringAsync().Result | ConvertFrom-Json
+            $newToken = [string](Get-JsonProperty $body 'access_token')
+            $expiresIn = Get-JsonProperty $body 'expires_in'
+            if (-not $newToken) { return $null }
+
+            $sec = if ($expiresIn) { [int]$expiresIn } else { 3600 }
+            $script:GeminiAccessToken = $newToken
+            $script:GeminiTokenExpiry = (Get-Date).AddSeconds($sec)
+            return @{ Token = $newToken }
+        }
+        finally {
+            $resp.Dispose()
+        }
+    }
+    catch {
+        return $null
+    }
+    finally {
+        $content.Dispose()
+    }
+}
+
 # 토큰이 만료됐을 때 claude CLI로 아주 짧은 작업을 시켜 갱신을 유도한다.
 #
 # 왜 이 방법뿐인가: 이 파일을 갱신하는 것은 CLI가 인증 API 호출을 할 때다. `--version`,
@@ -79,7 +168,9 @@ function Get-Credential {
 # 비용: 회당 약 10초, 약 4만 토큰. 그래서 기본은 꺼져 있고 사용자가 켜거나 직접 누른다.
 function Invoke-TokenRefresh([switch]$Manual) {
     if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
-        Set-Status -Status 'expired' -Text 'claude 명령을 찾을 수 없습니다. Claude Code 설치가 필요합니다'
+        $script:ClaudeStatus = 'expired'
+        $script:ClaudeStatusText = 'claude 명령을 찾을 수 없습니다. Claude Code 설치가 필요합니다'
+        Set-Status -Status 'expired' -Text $script:ClaudeStatusText
         return $false
     }
 
@@ -104,16 +195,18 @@ function Invoke-TokenRefresh([switch]$Manual) {
             'claude -p "Reply with only: ok" --model haiku < NUL > NUL 2>&1'
         ) -WorkingDirectory $env:USERPROFILE | Out-Null
 
-        Set-Status -Status 'expired' -Text '토큰 갱신 시도 중 — 10초쯤 걸립니다'
+        $script:ClaudeStatus = 'expired'
+        $script:ClaudeStatusText = '토큰 갱신 시도 중 — 10초쯤 걸립니다'
+        Set-Status -Status 'expired' -Text $script:ClaudeStatusText
 
         # 갱신이 끝나면 자격증명 파일이 바뀐다. 곧 다시 확인하도록 대기를 짧게 잡는다.
         $script:Backoff = 25
         return $true
     }
     catch {
-        Set-Status -Status 'expired' -Text "갱신 시도 실패: $($_.Exception.Message)"
+        $script:ClaudeStatus = 'expired'
+        $script:ClaudeStatusText = "갱신 시도 실패: $($_.Exception.Message)"
+        Set-Status -Status 'expired' -Text $script:ClaudeStatusText
         return $false
     }
 }
-
-

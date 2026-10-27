@@ -21,7 +21,7 @@ New-Item -ItemType Directory -Path $dist -Force | Out-Null
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path (Join-Path $stage 'lib') -Force | Out-Null
 
-foreach ($name in @('ClaudeUsageMonitor.ps1', 'start.vbs', 'guide.html', 'MODULES.md')) {
+foreach ($name in @('ClaudeUsageMonitor.ps1', 'start.vbs', 'README.md', 'ARCHITECTURE.md', 'MODULES.md')) {
     $from = Join-Path $root $name
     if (-not (Test-Path $from)) { throw "missing: $name" }
     Copy-Item $from (Join-Path $stage $name)

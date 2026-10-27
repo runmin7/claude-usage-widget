@@ -1,14 +1,7 @@
 ﻿# ClaudeUsageMonitor.ps1 - 진입점
 #
-# Claude 사용량(5시간 세션 / 주간 한도)을 트레이 아이콘과 바탕화면 위젯으로 표시한다.
+# Claude · Gemini · AGY 사용량을 트레이 아이콘과 바탕화면 위젯으로 표시한다.
 # 실제 동작은 lib/ 아래로 나뉘어 있다. 어떤 변경을 어느 파일에서 하는지는 MODULES.md를 보라.
-#
-# 데이터 출처: GET https://api.anthropic.com/api/oauth/usage
-#   - Claude Code CLI가 저장해둔 OAuth 액세스 토큰을 그대로 재사용한다.
-#   - Anthropic이 문서화하지 않은 비공식 API다. 예고 없이 스펙이 바뀔 수 있다.
-#
-# 자격증명은 읽기만 한다. OAuth 리프레시를 직접 구현하거나 .credentials.json에 쓰지 않는다.
-# Claude Code 자체 갱신과 경합하면 로그아웃될 수 있기 때문이다.
 #
 # 한글이 들어 있으므로 이 파일과 lib/ 아래 모든 파일은 UTF-8 BOM으로 저장해야 한다.
 # BOM이 없으면 PowerShell 5.1이 ANSI로 읽어 파싱조차 실패한다. tools/Fix-Encoding.ps1 참고.
@@ -37,7 +30,7 @@ Add-Type -AssemblyName System.Net.Http
 # 읽어들인다($menu를 만들어 트레이 아이콘에 바로 붙이기 때문이다).
 
 # 프로젝트 폴더는 여기서만 알 수 있다. lib/ 안에서 $PSScriptRoot 를 읽으면 lib/ 자신을 가리키므로,
-# 설정·가이드·런처 경로가 전부 lib/ 아래로 잘못 잡힌다. 그래서 진입점이 정해 넘긴다.
+# 설정·런처 경로가 전부 lib/ 아래로 잘못 잡힌다. 그래서 진입점이 정해 넘긴다.
 $script:ScriptDir = $PSScriptRoot
 $lib = Join-Path $PSScriptRoot 'lib'
 
@@ -51,7 +44,6 @@ $lib = Join-Path $PSScriptRoot 'lib'
 . (Join-Path $lib 'Parse.ps1')
 . (Join-Path $lib 'Format.ps1')
 . (Join-Path $lib 'Poll.ps1')
-. (Join-Path $lib 'Notify.ps1')
 . (Join-Path $lib 'Tray.ps1')
 . (Join-Path $lib 'Widget.ps1')
 . (Join-Path $lib 'WidgetLayout.ps1')

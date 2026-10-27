@@ -20,10 +20,24 @@ function Format-Countdown($target, [string]$suffix = '후') {
 }
 
 function Get-RenderSignature {
-    # 표시 설정도 지문에 넣어야 메뉴에서 토글한 결과가 다음 틱에 반영된다.
-    $parts = @($script:Status, $script:StatusText, [string]$script:Config.showWeekly)
+    # 표시 설정과 각 서비스의 상태도 지문에 넣어야 메뉴 토글 및 개별 상태 변화가 즉시 반영된다.
+    $parts = @(
+        $script:Status,
+        $script:StatusText,
+        $script:ClaudeStatus,
+        $script:ClaudeStatusText,
+        $script:GeminiStatus,
+        $script:GeminiStatusText,
+        $script:AgyStatus,
+        $script:AgyStatusText,
+        [string]$script:Config.showWeekly,
+        [string]$script:Config.hideClaude,
+        [string]$script:Config.hideGemini,
+        [string]$script:Config.hideAgy
+    )
     foreach ($row in $script:Limits) {
-        $parts += "$($row.Key)|$([int][Math]::Round($row.Percent))|$($row.Severity)|$(Format-Countdown $row.ResetsAt)"
+        $detail = if ($row.DetailText) { $row.DetailText } else { Format-Countdown $row.ResetsAt }
+        $parts += "$($row.Key)|$($row.Label)|$([int][Math]::Round($row.Percent))|$($row.Severity)|$detail"
     }
     if ($script:LastSuccess) { $parts += $script:LastSuccess.ToString('HH:mm:ss') }
     return ($parts -join ';')
@@ -36,4 +50,10 @@ function Get-SessionRow {
     return $script:Limits[0]
 }
 
-
+function Get-OverallSeverity {
+    $max = 0
+    foreach ($row in $script:Limits) {
+        if ($row.Severity -gt $max) { $max = $row.Severity }
+    }
+    return $max
+}

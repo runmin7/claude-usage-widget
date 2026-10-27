@@ -70,6 +70,12 @@ function Get-EffectiveSeverity([double]$percent, $serverSeverity) {
     return $rank
 }
 
+function Format-TokenMillion([int64]$tokens) {
+    $m = $tokens / 1000000.0
+    if ($m -ge 10.0) { return ('{0:0.0}M' -f $m) }
+    return ('{0:0.0}M' -f $m)
+}
+
 function ConvertFrom-UsagePayload($payload) {
     $rows = @()
 
@@ -81,13 +87,17 @@ function ConvertFrom-UsagePayload($payload) {
         if ([string]::IsNullOrWhiteSpace($kind)) { continue }
 
         $resets = [string](Get-JsonProperty $entry 'resets_at')
+        $label  = Get-LimitLabel $kind
         $rows += [pscustomobject]@{
-            Key      = $kind
-            Label    = Get-LimitLabel $kind
-            Percent  = [double]$percent
-            Window   = Get-LimitWindow $resets
-            ResetsAt = ConvertTo-LocalTime $resets
-            Severity = Get-EffectiveSeverity ([double]$percent) (Get-JsonProperty $entry 'severity')
+            Provider    = 'claude'
+            Key         = $kind
+            Label       = $label
+            NotifyLabel = "Claude $label"
+            Percent     = [double]$percent
+            Window      = Get-LimitWindow $resets
+            ResetsAt    = ConvertTo-LocalTime $resets
+            Severity    = Get-EffectiveSeverity ([double]$percent) (Get-JsonProperty $entry 'severity')
+            DetailText  = $null
         }
     }
 
@@ -102,13 +112,17 @@ function ConvertFrom-UsagePayload($payload) {
             if ($null -eq $percent) { continue }
 
             $resets = [string](Get-JsonProperty $bucket 'resets_at')
+            $label  = Get-LimitLabel $pair.Key
             $rows += [pscustomobject]@{
-                Key      = $pair.Key
-                Label    = Get-LimitLabel $pair.Key
-                Percent  = [double]$percent
-                Window   = Get-LimitWindow $resets
-                ResetsAt = ConvertTo-LocalTime $resets
-                Severity = Get-EffectiveSeverity ([double]$percent) $null
+                Provider    = 'claude'
+                Key         = $pair.Key
+                Label       = $label
+                NotifyLabel = "Claude $label"
+                Percent     = [double]$percent
+                Window      = Get-LimitWindow $resets
+                ResetsAt    = ConvertTo-LocalTime $resets
+                Severity    = Get-EffectiveSeverity ([double]$percent) $null
+                DetailText  = $null
             }
         }
     }
@@ -118,4 +132,60 @@ function ConvertFrom-UsagePayload($payload) {
         @{ Expression = { $_.Key } })
 }
 
+function ConvertFrom-GeminiQuotaPayload($payload) {
+    $buckets = @(Get-JsonProperty $payload 'buckets')
+    if ($buckets.Count -eq 0) { return @() }
 
+    $tiers = @(
+        @{
+            Key         = 'gemini_pro'
+            Label       = Get-LimitLabel 'gemini_pro'
+            NotifyLabel = 'Gemini Pro'
+            Filter      = { param($m) $m -like '*pro*' }
+        },
+        @{
+            Key         = 'gemini_flash'
+            Label       = Get-LimitLabel 'gemini_flash'
+            NotifyLabel = 'Gemini Flash'
+            Filter      = { param($m) ($m -like '*flash*') -and ($m -notlike '*lite*') }
+        }
+    )
+
+    $rows = @()
+    foreach ($tier in $tiers) {
+        $bestPercent = -1.0
+        $bestReset   = $null
+
+        foreach ($b in $buckets) {
+            $modelId = [string](Get-JsonProperty $b 'modelId')
+            if (-not (& $tier.Filter $modelId)) { continue }
+
+            $rem = Get-JsonProperty $b 'remainingFraction'
+            $used = if ($null -ne $rem) {
+                [Math]::Max(0.0, [Math]::Min(100.0, (1.0 - [double]$rem) * 100.0))
+            } else { 0.0 }
+
+            $resetStr = [string](Get-JsonProperty $b 'resetTime')
+            if ($used -gt $bestPercent) {
+                $bestPercent = $used
+                $bestReset   = $resetStr
+            }
+        }
+
+        if ($bestPercent -ge 0.0) {
+            $rows += [pscustomobject]@{
+                Provider    = 'gemini'
+                Key         = $tier.Key
+                Label       = $tier.Label
+                NotifyLabel = $tier.NotifyLabel
+                Percent     = $bestPercent
+                Window      = Get-LimitWindow $bestReset
+                ResetsAt    = ConvertTo-LocalTime $bestReset
+                Severity    = Get-EffectiveSeverity $bestPercent $null
+                DetailText  = $null
+            }
+        }
+    }
+
+    return $rows
+}

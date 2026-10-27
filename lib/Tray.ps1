@@ -4,21 +4,20 @@
 # entry script scope. See MODULES.md for which file to edit for a given change.
 
 
-function New-TrayIconObject([int]$percent, [int]$severityRank, [bool]$stale) {
-    # 트레이가 실제로 요구하는 크기로 그린다. 16px 고정으로 그리면 고배율 화면에서 확대되어 숫자가 뭉갠다.
+function New-TrayIconObject([int]$severityRank, [bool]$stale) {
+    # 트레이가 실제로 요구하는 크기로 그린다.
     $size = [System.Windows.Forms.SystemInformation]::SmallIconSize.Width
     if ($size -lt 16) { $size = 16 } elseif ($size -gt 64) { $size = 64 }
 
     $bitmap = New-Object System.Drawing.Bitmap($size, $size)
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     try {
-        $graphics.SmoothingMode     = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-        $graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::SingleBitPerPixelGridFit
+        $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
         $graphics.Clear([System.Drawing.Color]::Transparent)
 
         $color = $script:SeverityColor[$severityRank]
         if ($stale) {
-            # 갱신이 멈춘 값임을 색을 죽여 알린다.
+            # 모든 서비스 갱신이 멈춘 경우 색을 죽여 알린다.
             $color = [System.Drawing.Color]::FromArgb(120, 120, 120)
         }
 
@@ -26,24 +25,43 @@ function New-TrayIconObject([int]$percent, [int]$severityRank, [bool]$stale) {
         try { $graphics.FillRectangle($brush, 0, 0, $size, $size) }
         finally { $brush.Dispose() }
 
-        $text = if ($percent -lt 0) { '-' } elseif ($percent -ge 100) { '!!' } else { [string]$percent }
-        $ratio = switch ($text.Length) { 1 { 0.85 } 2 { 0.66 } default { 0.50 } }
-        $pixels = [Math]::Max(6, [int][Math]::Round($size * $ratio))
-        $font = New-Object System.Drawing.Font(
-            'Segoe UI', $pixels, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
-        $format = New-Object System.Drawing.StringFormat
-        $format.Alignment     = [System.Drawing.StringAlignment]::Center
-        $format.LineAlignment = [System.Drawing.StringAlignment]::Center
-        # NoWrap이 없으면 두 자리 숫자가 폭에 못 들어갈 때 두 줄로 감겨 한 자리만 보인다.
-        $format.FormatFlags   = [System.Drawing.StringFormatFlags]::NoWrap
-        $format.Trimming      = [System.Drawing.StringTrimming]::None
-        $white = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+        # 3개 서비스(Claude · Gemini · AGY) 통합 모니터를 상징하는 3단 수평 게이지 바 아이콘을 그린다.
+        $padX   = [Math]::Max(2, [int][Math]::Round($size * 0.18))
+        $padY   = [Math]::Max(2, [int][Math]::Round($size * 0.20))
+        $barW   = $size - ($padX * 2)
+        $barH   = [Math]::Max(2, [int][Math]::Round($size * 0.13))
+        $gapY   = [Math]::Max(1, [int][Math]::Round(($size - ($padY * 2) - ($barH * 3)) / 2.0))
+
+        # 각 서비스의 대표 사용률(0.30~1.0 폭으로 상징 표현)
+        $cRow = $script:ClaudeLimits | Where-Object { $_.Key -eq 'session' } | Select-Object -First 1
+        $gRow = $script:GeminiLimits | Where-Object { $_.Key -eq 'gemini_pro' } | Select-Object -First 1
+        $aRow = $script:AgyLimits    | Select-Object -First 1
+
+        $r1 = if ($cRow) { [Math]::Max(0.30, [Math]::Min(1.0, $cRow.Percent / 100.0)) } else { 0.75 }
+        $r2 = if ($gRow) { [Math]::Max(0.30, [Math]::Min(1.0, $gRow.Percent / 100.0)) } else { 0.55 }
+        $r3 = if ($aRow) { [Math]::Max(0.30, [Math]::Min(1.0, $aRow.Percent / 100.0)) } else { 0.85 }
+        $ratios = @($r1, $r2, $r3)
+        $hiddenFlags = @(
+            [bool]$script:Config.hideClaude,
+            [bool]$script:Config.hideGemini,
+            [bool]$script:Config.hideAgy
+        )
+
+        $trackBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(95, 255, 255, 255))
+        $whiteBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
         try {
-            $rect = New-Object System.Drawing.RectangleF(0, 0, $size, $size)
-            $graphics.DrawString($text, $font, $white, $rect, $format)
+            for ($i = 0; $i -lt 3; $i++) {
+                $y = $padY + $i * ($barH + $gapY)
+                $graphics.FillRectangle($trackBrush, $padX, $y, $barW, $barH)
+                if (-not $hiddenFlags[$i]) {
+                    $fillW = [Math]::Max(2, [int][Math]::Round($barW * $ratios[$i]))
+                    $graphics.FillRectangle($whiteBrush, $padX, $y, $fillW, $barH)
+                }
+            }
         }
         finally {
-            $white.Dispose(); $format.Dispose(); $font.Dispose()
+            $trackBrush.Dispose()
+            $whiteBrush.Dispose()
         }
     }
     finally { $graphics.Dispose() }
@@ -57,12 +75,16 @@ function New-TrayIconObject([int]$percent, [int]$severityRank, [bool]$stale) {
 }
 
 function Update-TrayIcon {
-    $session = Get-SessionRow
-    $percent  = if ($session) { [int][Math]::Round($session.Percent) } else { -1 }
-    $severity = if ($session) { $session.Severity } else { 0 }
-    $stale    = ($script:Status -ne 'ok' -and $script:Status -ne 'init')
+    $severity = Get-OverallSeverity
+    $anyOk    = ((-not $script:Config.hideClaude -and $script:ClaudeStatus -eq 'ok') -or
+                 (-not $script:Config.hideGemini -and $script:GeminiStatus -eq 'ok') -or
+                 (-not $script:Config.hideAgy    -and $script:AgyStatus    -eq 'ok'))
+    $allInit  = (($script:Config.hideClaude -or $script:ClaudeStatus -eq 'init') -and
+                 ($script:Config.hideGemini -or $script:GeminiStatus -eq 'init') -and
+                 ($script:Config.hideAgy    -or $script:AgyStatus    -eq 'init'))
+    $stale    = (-not $anyOk -and -not $allInit)
 
-    $new = New-TrayIconObject $percent $severity $stale
+    $new = New-TrayIconObject $severity $stale
     $old = $script:CurrentIcon
     $script:NotifyIcon.Icon = $new.Icon
     $script:CurrentIcon = $new
@@ -76,14 +98,50 @@ function Update-TrayIcon {
 
 function Update-Tooltip {
     $lines = @()
-    foreach ($row in $script:Limits) {
-        $lines += "{0} {1}% · {2}" -f $row.Label, [int][Math]::Round($row.Percent), (Format-Countdown $row.ResetsAt)
+
+    # 1. Claude 요약 줄
+    if (-not $script:Config.hideClaude) {
+        if ($script:ClaudeLimits.Count -gt 0) {
+            $c5 = $script:ClaudeLimits | Where-Object { $_.Key -eq 'session' } | Select-Object -First 1
+            $c7 = $script:ClaudeLimits | Where-Object { $_.Key -eq 'weekly_all' } | Select-Object -First 1
+            if ($c5 -and $c7) {
+                $lines += ("Claude 5h:{0}% 7d:{1}%" -f [int][Math]::Round($c5.Percent), [int][Math]::Round($c7.Percent))
+            }
+            elseif ($c5) {
+                $lines += ("Claude 5h:{0}%" -f [int][Math]::Round($c5.Percent))
+            }
+        }
+        elseif ($script:ClaudeStatus -ne 'init') {
+            $lines += "Claude: 확인 필요"
+        }
     }
+
+    # 2. Gemini 요약 줄
+    if (-not $script:Config.hideGemini) {
+        if ($script:GeminiLimits.Count -gt 0) {
+            $gp = $script:GeminiLimits | Where-Object { $_.Key -eq 'gemini_pro' } | Select-Object -First 1
+            $gf = $script:GeminiLimits | Where-Object { $_.Key -eq 'gemini_flash' } | Select-Object -First 1
+            if ($gp -and $gf) {
+                $lines += ("Gemini Pro:{0}% Fl:{1}%" -f [int][Math]::Round($gp.Percent), [int][Math]::Round($gf.Percent))
+            }
+            elseif ($gp) {
+                $lines += ("Gemini Pro:{0}%" -f [int][Math]::Round($gp.Percent))
+            }
+        }
+        elseif ($script:GeminiStatus -ne 'init') {
+            $lines += "Gemini: 확인 필요"
+        }
+    }
+
+    # 3. AGY 요약 줄
+    if (-not $script:Config.hideAgy -and $script:AgyLimits.Count -gt 0) {
+        $aw = $script:AgyLimits[0]
+        $lines += ("AGY 7d:{0}%" -f [int][Math]::Round($aw.Percent))
+    }
+
     if ($lines.Count -eq 0) { $lines += $script:StatusText }
-    elseif ($script:Status -ne 'ok') { $lines += "! $($script:StatusText)" }
 
     # 63자를 넘기면 예외가 난다. 줄 단위로 담다가 안 들어가는 줄은 버린다.
-    # 한 줄을 중간에서 자르면 오히려 읽을 수 없으니, 한도 순서(세션 → 주간 → 그 외)를 신뢰해 뒤를 포기한다.
     $kept = @()
     foreach ($line in $lines) {
         $candidate = @($kept + $line) -join "`n"
@@ -95,5 +153,3 @@ function Update-Tooltip {
     }
     $script:NotifyIcon.Text = ($kept -join "`n")
 }
-
-

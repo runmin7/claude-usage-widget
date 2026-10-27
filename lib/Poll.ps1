@@ -14,7 +14,9 @@ function Set-NetworkBackoff([string]$message) {
     } else {
         [Math]::Min($script:Backoff * 2, $script:NetworkMaxBackoff)
     }
-    Set-Status -Status 'error' -Text "갱신 실패: $message"
+    $script:ClaudeStatus     = 'error'
+    $script:ClaudeStatusText = "갱신 실패: $message"
+    Set-Status -Status 'error' -Text $script:ClaudeStatusText
 }
 
 function Get-PollInterval {
@@ -61,6 +63,7 @@ function Invoke-Tick {
             # HttpClient 타임아웃이 어떤 이유로 걸리지 않은 경우의 안전장치.
             $script:PendingTask = $null
             Set-NetworkBackoff '응답 시간 초과'
+            Sync-CombinedState
         }
     }
     elseif ($script:ForceFetch -or ((Get-Date) - $script:LastAttempt).TotalSeconds -ge (Get-PollInterval)) {
@@ -79,5 +82,3 @@ function Invoke-Tick {
         Update-Widget
     }
 }
-
-
